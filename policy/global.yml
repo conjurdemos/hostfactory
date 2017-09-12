@@ -1,0 +1,8 @@
+---
+- !group devops
+
+- !user alice
+
+- !grant
+  role: !group devops
+  member: !user alice

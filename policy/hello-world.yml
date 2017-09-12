@@ -1,0 +1,20 @@
+---
+- !policy
+  id: hello-world
+  owner: !group /devops
+  body:
+    - &application-secrets
+      - !variable postgres/user
+      - !variable postgres/password
+
+    - !layer
+
+    - !hostfactory
+      layers: [ !layer ]
+
+    - !variable s3/host-factory-token
+
+    - !permit
+      role: !layer
+      privilege: [ read, execute ]
+      resource: *application-secrets
