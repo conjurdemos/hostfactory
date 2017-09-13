@@ -18,9 +18,9 @@
         rotation/rotator: hostfactory
         rotation/ttl: P1D
         rotation/hostfactory/id: hello-world
-        rotation/target/s3/role-name: hostfactory-DemoInstanceIamRole-EM9VNKCF83JZ
+        rotation/target/s3/role-name: # Enter the output value "InstanceRole" from the CloudFormation Template here
         rotation/target/s3/access-key-id: aws/iam/us-east-1/users/conjur/access_key_id
-        rotation/target/s3/bucket: hostfactory-hostfactorybucket-1a80soniz4tfo
+        rotation/target/s3/bucket: # Enter the output value "S3Bucket" from the CloudFormation Template here
         rotation/target/s3/cidr: 10.0.1.0/24
 
     - !permit
