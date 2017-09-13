@@ -124,7 +124,8 @@ Resources:
             #!/usr/bin/env bash
             set -ox pipefail
 
-            home=/root
+            HOME=/root
+
             appliance_url=${ApplicanceURL}
             s3_bucket=${HostfactoryBucket}
 
