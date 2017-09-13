@@ -97,7 +97,7 @@ Resources:
         ToPort: '22'
         CidrIp: !Ref SourceNetwork
       SecurityGroupEgress:
-      - IpProtocol: All
+      - IpProtocol: tcp
         FromPort: '0'
         ToPort: '65535'
         CidrIp: '0.0.0.0/0'
@@ -117,48 +117,52 @@ Resources:
       Tags: 
       - Key: Name
         Value: Conjur-Hostfactory-Demo
-      UserData: Fn::Base64: !Sub |
-        #!/usr/bin/env bash
-        set -o pipefail
+      UserData: 
+        Fn::Base64: 
+          !Sub 
+          - |
+            #!/usr/bin/env bash
+            set -ox pipefail
 
-        appliance_url=${ApplicanceURL}
-        s3_bucket=${HostfactoryBucket}
+            home=/root
+            appliance_url=${ApplicanceURL}
+            s3_bucket=${HostfactoryBucket}
 
-        sudo apt-get update
-        sudo apt-get install -y awscli python
+            apt-get update
+            apt-get install -y awscli python
 
-        curl -LO https://github.com/cyberark/conjur-cli/releases/download/v5.4.0/conjur_5.4.0-1_amd64.deb
-        sudo dpkg -i conjur_5.4.0-1_amd64.deb
-        rm -f conjur_5.4.0-1_amd64.deb
+            curl -LO https://github.com/cyberark/conjur-cli/releases/download/v5.4.0/conjur_5.4.0-1_amd64.deb
+            dpkg -i conjur_5.4.0-1_amd64.deb
+            rm -f conjur_5.4.0-1_amd64.deb
 
-        pushd /usr/local/bin
-        curl -sSL https://github.com/cyberark/summon/releases/download/v0.6.5/summon-linux-amd64.tar.gz | sudo tar xz
+            pushd /usr/local/bin
+            curl -sSL https://github.com/cyberark/summon/releases/download/v0.6.5/summon-linux-amd64.tar.gz | tar xz
 
-        sudo mkdir -p /usr/local/lib/summon
-        pushd /usr/local/lib/summon
-        curl -sSL https://github.com/cyberark/summon-conjur/releases/download/v0.2.0/summon-conjur_v0.2.0_linux-amd64.tar.gz | sudo tar xz
+            mkdir -p /usr/local/lib/summon
+            pushd /usr/local/lib/summon
+            curl -sSL https://github.com/cyberark/summon-conjur/releases/download/v0.2.0/summon-conjur_v0.2.0_linux-amd64.tar.gz | tar xz
 
-        popd
-        popd
+            popd
+            popd
 
-        git clone git@github.com:conjurdemos/hostfactory.git
+            git clone https://github.com/conjurdemos/hostfactory.git
 
-        sudo conjur init -h $appliance_url <<< yes
+            conjur init -h $appliance_url <<< yes
 
-        instance_id=$(curl -s http://instance-data/latest/meta-data/instance-id)
-        role_name=$(curl -s http://instance-data/latest/meta-data/iam/security-credentials/)
+            instance_id=$(curl -s http://instance-data/latest/meta-data/instance-id)
+            role_name=$(curl -s http://instance-data/latest/meta-data/iam/security-credentials/)
 
-        while : ; do
-          token=$(aws s3 cp s3://$s3_bucket/hello-world - 2>/dev/null)
-          [[ $? == 1 ]] || break
-          sleep 1s
-        done
+            while : ; do
+              token=$(aws s3 cp s3://$s3_bucket/hello-world - 2>/dev/null)
+              [[ $? == 1 ]] || break
+              sleep 1s
+            done
 
-        sudo conjur hostfactory hosts create "$token" "$instance_id" | conjurize | sudo bash
+            conjur hostfactory hosts create "$token" "$instance_id" | conjurize | bash
 
-        cd hostfactory/webapp
-        summon ./server.py
-
+            cd hostfactory/webapp
+            summon ./server.py
+          - HostfactoryBucket: !Ref HostfactoryBucket
 
   HostfactoryBucket:
     Type: AWS::S3::Bucket
@@ -252,3 +256,6 @@ Outputs:
   InstanceRole:
     Description: Instance role
     Value: !Ref DemoInstanceIamRole
+  DemoInstance:
+    Description: Public DNS of the Hello-world demo instance
+    Value: !GetAtt DemoInstance.PublicDnsName
