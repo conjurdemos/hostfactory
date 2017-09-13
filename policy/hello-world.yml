@@ -9,10 +9,19 @@
 
     - !layer
 
-    - !hostfactory
+    - !host-factory
       layers: [ !layer ]
 
-    - !variable s3/host-factory-token
+    - !variable
+      id: s3/host-factory-token
+      annotations:
+        rotation/rotator: hostfactory
+        rotation/ttl: P1D
+        rotation/hostfactory/id: hello-world
+        rotation/target/s3/role-name: dbt1-DemoInstanceIamRole-16YVVO28KUJGT
+        rotation/target/s3/access-key-id: aws/iam/us-east-1/users/conjur/access_key_id
+        rotation/target/s3/bucket: dbt1-hostfactorybucket-1iy4zmt50nzav
+        rotation/target/s3/cidr: 10.0.1.0/24
 
     - !permit
       role: !layer

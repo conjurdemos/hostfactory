@@ -1,0 +1,8 @@
+---
+- !policy
+  id: aws
+  body:
+  - &secrets
+    - !variable iam/us-east-1/users/conjur/access_key_id
+    - !variable iam/us-east-1/users/conjur/secret_access_key
+    - !variable iam/us-east-1/users/conjur/region

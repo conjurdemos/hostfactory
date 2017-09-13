@@ -89,18 +89,18 @@ Resources:
     Properties:
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: '443'
-        ToPort: '443'
+        FromPort: '80'
+        ToPort: '80'
         CidrIp: !Ref SourceNetwork
       - IpProtocol: tcp
         FromPort: '22'
         ToPort: '22'
         CidrIp: !Ref SourceNetwork
       SecurityGroupEgress:
-      - IpProtocol: tcp
+      - IpProtocol: All
         FromPort: '0'
         ToPort: '65535'
-        CidrIp: '0.0.0.0/32'
+        CidrIp: '0.0.0.0/0'
       GroupDescription: Conjur Hostfactory Demo Security Group
       VpcId: !Ref VpcId
 
@@ -117,27 +117,51 @@ Resources:
       Tags: 
       - Key: Name
         Value: Conjur-Hostfactory-Demo
-      UserData: 'String'
+      UserData: Fn::Base64: !Sub |
+        #!/usr/bin/env bash
+        set -o pipefail
+
+        appliance_url=${ApplicanceURL}
+        s3_bucket=${HostfactoryBucket}
+
+        sudo apt-get update
+        sudo apt-get install -y awscli python
+
+        curl -LO https://github.com/cyberark/conjur-cli/releases/download/v5.4.0/conjur_5.4.0-1_amd64.deb
+        sudo dpkg -i conjur_5.4.0-1_amd64.deb
+        rm -f conjur_5.4.0-1_amd64.deb
+
+        pushd /usr/local/bin
+        curl -sSL https://github.com/cyberark/summon/releases/download/v0.6.5/summon-linux-amd64.tar.gz | sudo tar xz
+
+        sudo mkdir -p /usr/local/lib/summon
+        pushd /usr/local/lib/summon
+        curl -sSL https://github.com/cyberark/summon-conjur/releases/download/v0.2.0/summon-conjur_v0.2.0_linux-amd64.tar.gz | sudo tar xz
+
+        popd
+        popd
+
+        git clone git@github.com:conjurdemos/hostfactory.git
+
+        sudo conjur init -h $appliance_url <<< yes
+
+        instance_id=$(curl -s http://instance-data/latest/meta-data/instance-id)
+        role_name=$(curl -s http://instance-data/latest/meta-data/iam/security-credentials/)
+
+        while : ; do
+          token=$(aws s3 cp s3://$s3_bucket/hello-world - 2>/dev/null)
+          [[ $? == 1 ]] || break
+          sleep 1s
+        done
+
+        sudo conjur hostfactory hosts create "$token" "$instance_id" | conjurize | sudo bash
+
+        cd hostfactory/webapp
+        summon ./server.py
+
 
   HostfactoryBucket:
     Type: AWS::S3::Bucket
-
-  IamAccessKeyRotatorPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: ConjurHostfactoryDemoIamAccessKeys
-      PolicyDocument:
-        Statement:
-        - Action:
-          - 'iam:CreateAccessKey'
-          - 'iam:ListAccessKeys'
-          - 'iam:DeleteAccessKey'
-          Effect: Allow
-          Resource:
-          - !GetAtt IamRotatedUser.Arn
-      PolicyName: BucketBackupPolicy
-      Users: 
-        - !Ref IamRotatedUser
 
   IamRotatedUser:
     Type: AWS::IAM::User
@@ -161,19 +185,38 @@ Resources:
       Roles: 
         - !Ref DemoInstanceIamRole
 
-  BucketFullPermissionPolicy:
+  IamTokenManagerPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: ConjurHostfactoryDemoBucketPermissions
+      PolicyName: ConjurHostfactoryDemoIamTokenManager
       PolicyDocument:
         Statement:
         - Action:
-          - 's3:GetObject'
-          - 's3:PutObject'
-          - 's3:DeleteObject'
+          - 's3:ListBucket'
           Effect: Allow
           Resource:
           - !Join ['', ['arn:aws:s3:::', !Ref HostfactoryBucket]]
+        - Action:
+          - 's3:GetObject'
+          - 's3:PutObject'
+          - 's3:PutObjectAcl'
+          - 's3:DeleteObject'
+          Effect: Allow
+          Resource:
+          - !Join ['', ['arn:aws:s3:::', !Ref HostfactoryBucket, '/*']]
+        - Action:
+          - 'iam:GetRole'
+          - 'iam:PutRolePolicy'
+          Effect: Allow
+          Resource:
+          - !GetAtt DemoInstanceIamRole.Arn
+        - Action:
+          - 'iam:CreateAccessKey'
+          - 'iam:ListAccessKeys'
+          - 'iam:DeleteAccessKey'
+          Effect: Allow
+          Resource:
+          - !GetAtt IamRotatedUser.Arn
       Users: 
         - !Ref IamRotatedUser
 
@@ -206,3 +249,6 @@ Outputs:
   S3Bucket:
     Description: S3 bucket for hostfactory rotation
     Value: !Ref HostfactoryBucket
+  InstanceRole:
+    Description: Instance role
+    Value: !Ref DemoInstanceIamRole

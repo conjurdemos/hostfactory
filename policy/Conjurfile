@@ -1,3 +1,4 @@
 ---
 - !include global.yml
-- !include weather-service.yml
+- !include aws.yml
+- !include hello-world.yml
